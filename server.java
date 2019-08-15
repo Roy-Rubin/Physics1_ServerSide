@@ -1,13 +1,26 @@
-// SERVER version 1
+// SERVER version 2 - inside local disk D:
 
 /*
 Instructions:
-1. open cmd, change directory to server dir using "chdir C:\Users\RRubin\Desktop\royServer2"
-2. compile the server file using "javac server.java" [changed to] javac -classpath engine.jar server.java
-3. run the server using "java server"  [changed to] java -classpath .;engine.jar server
+1. open cmd, change directory to server dir using:     D:   and then:    chdir D:\royServer2_in_d 
+2. compile the server file using: javac -classpath "C:\Program Files\MATLAB\R2018a\extern\engines\java\jar\engine.jar" server.java
+3. run the server using:   java -classpath .;"C:\Program Files\MATLAB\R2018a\extern\engines\java\jar\engine.jar" server
 
 Notes:
-this works because i already know where to save the image, the image is overrun each time, all folders exist, IP is correct. and only 1 client
+
+Matlab versions:
+apparently, the detector will only work if we are using the exact version of matlab and matlab toolboxes.
+the correct versions are:
+Matlab R2018b
+computer vision system toolbox -version 8.2
+deep learning toolbox -version 12
+
+this works because: 
+- i already know where to save the image
+- the image is overrun each time
+- all folders exist
+- IP is correct
+- only 1 client
 
 */
 
@@ -39,15 +52,23 @@ class server {
     // requires the addition of the .JAR file
 	public static MatlabEngine matlab_engine;
     //
-    public static String jsonPath;
-	
+    public static String jsonPath = null;  //note warning
+	//
+	public static String path_to_server_files_dir = "D:\\royServer2_in_d";  //note - the reason for \\ is to signal that this is a special char.
+	public static String path_to_ObjectMapper_dir = "D:\\royServer2_in_d\\ObjectMapper";
+	public static String image_file_path_string = null;    //note warning
+
     public static void main (String arg[]) {
 
+		//print welcome message
+		System.out.println("\n\nHi! welcome to the server. \nWarming up all matlab systems: ");		
+		
 		// warm up all systems
 		InitializeEngine();
 		InitializeDetector();
 	
-	
+		System.out.println("\nMatlab systems initialized. initialize server: ");		
+
         try { //the try block is because the ServerSocket CTOR might crash if theres another app in the same port [or something like that]
 		
 			// updated:
@@ -55,40 +76,46 @@ class server {
             System.out.println("Server started. Listening to port 1936");
 			
             // wait for client [loop - until client enters !]
-            System.out.println("now waiting for client ...");
+            System.out.println("now waiting for client ...\n");
             Socket client_socket = server.accept();
 
             // if we got here, it means a client has connected.
-            System.out.println("Server connected");
+            System.out.println("Server connected \n");
 			
             // use our own built function to get and save the picture.
+			System.out.println("waiting for image to be sent ....");
             receivePicture(client_socket);
 			// if we got here, we came back and the picture was saved.
             System.out.println("image received and saved. processing ....");
 
             //todo: add processing
             System.out.println("begin processing ....");
-
-			setNewJsonPath(false, false, 98, "C:\\Users\\RRubin\\Desktop\\royServer2\\image.jpeg"); //this calls "runMatlab" which actually does all the work.
+			
+			//setNewJsonPath(false, false, 98, image_file_path.getAbsolutePath() ); //this calls "runMatlab" which actually does all the work. //warning note: look at arg 4
 			
 			//todo: add after processing phase
 			
-			System.out.println("processing completed. sending back JSON");
+			System.out.println("processing completed. JSON path set to: " + jsonPath);
+			System.out.println("sending back JSON");
 
 			//todo: send back the JSON
 			
 			//sendJsonToClient(client_socket, JSONOBJ jsonobj);
 			
-			//todo: perform next line only after getting confirmation from client ?
-			System.out.println("Server finished. have a nice day :)");
-
 			// ending
+			System.out.println("\nbegining ending phase:");
+			System.out.println("closing matlab engine");
 			matlab_engine.close(); 
+			System.out.println("closing client socket");
+			client_socket.close();  //also called "socketX" in other places.
+			System.out.println("closing server socket");
+			server.close();  
+			//todo: perform next line only after getting confirmation from client ?
+			System.out.println("\nServer finished. have a nice day :)");
 			
         } catch (Exception e) {
-            // todo: print error
-
-            System.out.println("could not log on... ");
+			System.out.println("\n ----- error performing something in main after 'InitializeEngine' and 'InitializeDetector'. -----\n ");
+			e.printStackTrace();
             System.out.println("now exiting.");
             return;
         }
@@ -120,21 +147,21 @@ class server {
 			byte [] data = content.toByteArray();
 			ByteArrayInputStream bis = new ByteArrayInputStream(data);
 			BufferedImage bufferedImage = ImageIO.read(bis);
-			String path = "C:\\Users\\RRubin\\Desktop\\royServer2";  //note - the reason for \\ is to signal that this is a special char.
+			String path = path_to_server_files_dir;  
             File image_file_path = new File(path + File.separator + "image.jpeg");   
 			ImageIO.write(bufferedImage, "jpg", image_file_path);
-			System.out.println("image created");
+			image_file_path_string = image_file_path.getAbsolutePath();
+			System.out.println("image created. path is: " + image_file_path_string);
 			
 			//ending
             inStream.close();
             content.close();
-            socketX.close();
+            //socketX.close(); - do this in the main function ? //TODO: WARNING: check if this line i commented changes the behavior of the program. i copied it to the main func ending part
 
         } catch (Exception e) {
-
-            //todo: print error.
-
-            System.out.println("error in receivePicture");
+			System.out.println("\n ----- error performing something in receivePicture. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
 
         }
 
@@ -154,12 +181,11 @@ class server {
             outputStream.close();
             socketX.close();
 
-        } catch (IOException e1) {
+        } catch (Exception e) {
 
-            //todo: print error.
-
-            System.out.println("error in sendJsonToClient");
-
+			System.out.println("\n ----- error performing something in sendJsonToClient. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         }
 
     } */
@@ -170,43 +196,54 @@ class server {
 	
 	
 	private static void InitializeEngine() {
+		// this whole function is about 1 line that needs a try catch block around it
         try{
+			
             System.out.println("Initializing Matlab Engine ...");  
 
             matlab_engine = MatlabEngine.startMatlab(); /*!!!*/
 
-            System.out.println("Engine Initialization Completed");	
+            System.out.println("Engine Initialization Completed \n");	
+			
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            System.out.println("\n ----- error performing something in InitializeEngine. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            System.out.println("\n ----- error performing something in InitializeEngine. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         } catch (Exception e) {
-            // todo: print error
-            System.out.println("now exiting.");
-            return;
+			System.out.println("\n ----- error performing something in InitializeEngine. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         }
     }
 	
 	
 	private static void InitializeDetector() {
-        System.out.println("Initializing Detector...(should take a long time) ");  
+        System.out.println("Initializing Detector... (this will take some time) ");  
         // messages are printed from matlab (!?)
         try {
             // Change directory and evaluate function
-			String matlabFunDir = "C:\\Users\\RRubin\\Desktop\\royServer2\\ObjectMapper";  
+			String matlabFunDir = path_to_ObjectMapper_dir;  
             matlab_engine.eval("cd '" + matlabFunDir + "'");
-            matlab_engine.feval(0, "intializeDetector");
+            matlab_engine.feval(0, "intializeDetector"); // "intializeDetector" is a ".m" matlab file which will be opened and run.
 			
-			System.out.println("Detector Initialization Completed (verify completion in matlab)");	
+			System.out.println("Detector Initialization Completed (verify completion- no errors or warning above me) \n");	
 
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            System.out.println("\n ----- error performing something in InitializeDetector. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            System.out.println("\n ----- error performing something in InitializeDetector. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         } catch (Exception e) {
-            // todo: print error
-            System.out.println("now exiting.");
-            return;
+            System.out.println("\n ----- error performing something in InitializeDetector. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         }
     }
 	
@@ -218,17 +255,21 @@ class server {
 
         try {
             // Change directory and evaluate function
-			String matlabFunDir = "C:\\Users\\RRubin\\Desktop\\royServer2\\ObjectMapper";  
+			String matlabFunDir = path_to_ObjectMapper_dir;  
             matlab_engine.eval("cd '" + matlabFunDir + "'");
 			//
-            Object result = matlab_engine.feval(1, "Detect_Map", imagePath, th, showDetection, showMapping);
+            Object result = matlab_engine.feval(1, "Detect_Map", imagePath, th, showDetection, showMapping);  // "Detect_Map" is a ".m" matlab file which will be opened and run.
 			//
             temp_jsonPath = (String) result;
 
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            System.out.println("\n ----- error performing something in RunMatlab. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            System.out.println("\n ----- error performing something in RunMatlab. -----\n ");
+			e.printStackTrace();
+            System.out.println("now returning.");
         }
 
         return temp_jsonPath;
@@ -236,7 +277,7 @@ class server {
 	
 	
 	public static void setNewJsonPath(boolean showDetection, boolean showMapping, int threshold, String image_path){
-        //jsonPath = RunMatlab(getImagePath(), showDetection, showMapping, (double)threshold/100); //TODO: IMPORTANT - this is noted only because the function
+        jsonPath = RunMatlab(image_path, showDetection, showMapping, (double)threshold/100); 			//note: what is the threshold ?
     }
 
 
