@@ -3,8 +3,25 @@
 /*
 Instructions:
 1. open cmd, change directory to server dir using:     D:   and then:    chdir D:\royServer2_in_d 
-2. compile the server file using: javac -classpath "C:\Program Files\MATLAB\R2018a\extern\engines\java\jar\engine.jar" server.java
-3. run the server using:   java -classpath .;"C:\Program Files\MATLAB\R2018a\extern\engines\java\jar\engine.jar" server
+2. compile the server file using: javac -classpath "D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar" server.java
+3. run the server using:   java -classpath .;"D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar" server
+
+
+
+
+new run lines with json tools
+
+
+javac -classpath "D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar";"D:\royServer2_in_d\json-simple-1.1.1.jar" server.java
+
+
+java -classpath .;"D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar";"D:\royServer2_in_d\json-simple-1.1.1.jar" server
+
+
+
+
+
+
 
 Notes:
 
@@ -21,6 +38,9 @@ this works because:
 - all folders exist
 - IP is correct
 - only 1 client
+- added "D:\MATLAB\R2018b\bin\win64" to PATH [environment variables] -> IMPORTANT: "If you have multiple versions of MATLAB installed on your system, 
+																					the version you use to build your engine applications must be the first listed in your system Path environment variable.
+																					Otherwise, MATLAB displays Can't start MATLAB engine."
 
 */
 
@@ -36,6 +56,11 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -44,6 +69,21 @@ import java.util.concurrent.ExecutionException;
 // package org.jbox2d.testbed.framework.j2d;
 //
 import com.mathworks.engine.MatlabEngine;
+
+//
+
+import java.io.FileReader;
+import java.util.Iterator;
+ 
+//
+//import org.json.*;
+//import org.json.JSONObject;
+//import org.json.JSONException;
+
+//
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 
 class server {
@@ -75,39 +115,48 @@ class server {
 			ServerSocket server = new ServerSocket(1936, 0, InetAddress.getByName("132.68.58.72"));  // "132.68.58.72" and not "http://132.68.58.72". note that this is this computer ipv4 address. the android client also loggs on to this address
             System.out.println("Server started. Listening to port 1936");
 			
+			// general note: it isn't possible to close a socket and reopen it. thats why we'll use to client sockets.
+			
             // wait for client [loop - until client enters !]
-            System.out.println("now waiting for client ...\n");
-            Socket client_socket = server.accept();
+            System.out.println("now waiting for client on the first socket (intended socket to receive data)...\n");
+            Socket client_socket_for_receiving_data = server.accept();
 
             // if we got here, it means a client has connected.
-            System.out.println("Server connected \n");
+            System.out.println("client_socket_for_receiving_data connected \n");
 			
             // use our own built function to get and save the picture.
 			System.out.println("waiting for image to be sent ....");
-            receivePicture(client_socket);
+            receivePicture(client_socket_for_receiving_data);
 			// if we got here, we came back and the picture was saved.
             System.out.println("image received and saved. processing ....");
 
             //todo: add processing
             System.out.println("begin processing ....");
 			
-			//setNewJsonPath(false, false, 98, image_file_path.getAbsolutePath() ); //this calls "runMatlab" which actually does all the work. //warning note: look at arg 4
+			setNewJsonPath(false, false, 98, image_file_path_string); //this calls "runMatlab" which actually does all the work. //warning note: look at arg 4
 			
 			//todo: add after processing phase
 			
 			System.out.println("processing completed. JSON path set to: " + jsonPath);
-			System.out.println("sending back JSON");
+			System.out.println("\nsending back JSON");
 
 			//todo: send back the JSON
 			
-			//sendJsonToClient(client_socket, JSONOBJ jsonobj);
+			// wait for client [loop - until client enters !]
+            System.out.println("now waiting for client on the second socket (intended socket to send data)...\n");
+            Socket client_socket_for_sending_data = server.accept();
+            // if we got here, it means a client has connected.
+            System.out.println("client_socket_for_sending_data connected \n");
+			//
+			sendJsonToClient(client_socket_for_sending_data);
 			
 			// ending
 			System.out.println("\nbegining ending phase:");
 			System.out.println("closing matlab engine");
 			matlab_engine.close(); 
 			System.out.println("closing client socket");
-			client_socket.close();  //also called "socketX" in other places.
+			client_socket_for_receiving_data.close();  //also called "socketX" in other places.
+			client_socket_for_sending_data.close();
 			System.out.println("closing server socket");
 			server.close();  
 			//todo: perform next line only after getting confirmation from client ?
@@ -143,10 +192,13 @@ class server {
                 content.flush();
             }
 			
+			//
+			System.out.println("finished sending data");
+			
 			// convert the buffered content to an image, and save it.
 			byte [] data = content.toByteArray();
-			ByteArrayInputStream bis = new ByteArrayInputStream(data);
-			BufferedImage bufferedImage = ImageIO.read(bis);
+			ByteArrayInputStream byteArrayOutputStream = new ByteArrayInputStream(data);
+			BufferedImage bufferedImage = ImageIO.read(byteArrayOutputStream);
 			String path = path_to_server_files_dir;  
             File image_file_path = new File(path + File.separator + "image.jpeg");   
 			ImageIO.write(bufferedImage, "jpg", image_file_path);
@@ -156,7 +208,10 @@ class server {
 			//ending
             inStream.close();
             content.close();
-            //socketX.close(); - do this in the main function ? //TODO: WARNING: check if this line i commented changes the behavior of the program. i copied it to the main func ending part
+			socketX.close();
+
+			//
+			System.out.println("exiting receivePicture");
 
         } catch (Exception e) {
 			System.out.println("\n ----- error performing something in receivePicture. -----\n ");
@@ -167,19 +222,85 @@ class server {
 
     }
 	
+	private static JSONObject createJsonFromFile() {
+		//note - this function works because the json path is a global variable
+		System.out.println("entering createJsonFromFile ");
+		 
+		JSONObject jsonObject = null;
+		 
+        JSONParser parser = new JSONParser();
+ 
+        try {
+ 
+            //Object obj = parser.parse(new FileReader("/Users/<username>/Documents/file1.txt"));
+			Object obj = parser.parse(new FileReader(jsonPath));
+ 
+            jsonObject = (JSONObject) obj;
+ 
+			// NOTE: temp commented - but needs to be deleted later.
+ /* 
+            JSONArray Triangles_list = (JSONArray) jsonObject.get("Triangles");
+			
+ 			System.out.println("\n[temp check]Printing json file ----------");
+            System.out.println("\nTriangles:");
+            Iterator<String> iterator = Triangles_list.iterator();
+            while (iterator.hasNext()) {
+                System.out.println(iterator.next());
+            }
+			System.out.println("done\n"); */
+ 
+        } catch (Exception e) {
+            e.printStackTrace();
+        } 
+		
+		
+
+		
+		return jsonObject;
+	}
+	
 	// THIS IS FOR LATER !
-/* 	private static void sendJsonToClient(Socket socketX, JSONOBJ jsonobj) {
+ 	private static void sendJsonToClient(Socket socketX) {
         System.out.println("entering sendJsonToClient ");
 
         try {
+			// create json object, and convert it to a string to send
+			JSONObject jsonObject = createJsonFromFile();
+			
+			
+			//temp check. maybe it will be okay to delete later 
+			//this next part is for us so we can see that the file was recieved correctly.
+			String jsonConvertToString_unformatted = jsonObject.toString();
+			String jsonConvertToString_formatted = null;
+			
+			try {
+				byte[] encoded = Files.readAllBytes(Paths.get(jsonPath));
+				jsonConvertToString_formatted = new String(encoded, StandardCharsets.US_ASCII); //note the encoding here (arg 2)
+			
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			System.out.println("\nCreated JSONObject from file. Printing json file as string:");
+			System.out.println("\nUnformatted:");
+			System.out.println(jsonConvertToString_unformatted); 
+			System.out.println("\nFormatted:");
+			System.out.println(jsonConvertToString_formatted + "\n");
+
+			
 			//notify user, and get stream
             System.out.println("getting DataOutputStream");
-            DataOutputStream outputStream = new DataOutputStream(socketX.getOutputStream());
 			
+			// try to send as a string
+            //DataOutputStream outputStream = new DataOutputStream(socketX.getOutputStream());
+			// "UTF8 is the only byte encoding for JSON. Any other encoding and it's not legally JSON."
+			OutputStreamWriter outputStreamWrite = new OutputStreamWriter(socketX.getOutputStream(), StandardCharsets.UTF_8);
+			
+			outputStreamWrite.write(jsonObject.toString());
+			outputStreamWrite.flush();
+			outputStreamWrite.close();
             
-			//ending
-            outputStream.close();
-            socketX.close();
+			
 
         } catch (Exception e) {
 
@@ -187,8 +308,8 @@ class server {
 			e.printStackTrace();
             System.out.println("now returning.");
         }
-
-    } */
+		
+    } 
 	
 	////////////////////////////////////// ASSISTING FUNCTIONS ////////////////////////////////////////////
 	////////////////////////////////////// MATLAB STUFF ////////////////////////////////////////////
@@ -247,7 +368,7 @@ class server {
         }
     }
 	
-	private static String RunMatlab(String imagePath, boolean showDetection, boolean showMapping, double th) {
+	private static String RunMatlab(String imagePath, boolean showDetection, boolean showMapping, double threshold) {
         
 		// messages are printed from matlab
 		
@@ -258,9 +379,15 @@ class server {
 			String matlabFunDir = path_to_ObjectMapper_dir;  
             matlab_engine.eval("cd '" + matlabFunDir + "'");
 			//
-            Object result = matlab_engine.feval(1, "Detect_Map", imagePath, th, showDetection, showMapping);  // "Detect_Map" is a ".m" matlab file which will be opened and run.
+            Object result = matlab_engine.feval(1, "Detect_Map", imagePath, threshold, showDetection, showMapping);  // "Detect_Map" is a ".m" matlab file which will be opened and run.
+			
+			//		System.out.println("temp check: inside RunMatlab. json path is: " + result.toString());
+
 			//
             temp_jsonPath = (String) result;
+			
+			//		System.out.println("temp check: inside RunMatlab. json path is: " + temp_jsonPath);
+
 
         } catch (InterruptedException e) {
             System.out.println("\n ----- error performing something in RunMatlab. -----\n ");
