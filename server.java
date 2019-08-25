@@ -3,25 +3,8 @@
 /*
 Instructions:
 1. open cmd, change directory to server dir using:     D:   and then:    chdir D:\royServer2_in_d 
-2. compile the server file using: javac -classpath "D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar" server.java
-3. run the server using:   java -classpath .;"D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar" server
-
-
-
-
-new run lines with json tools
-
-
-javac -classpath "D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar";"D:\royServer2_in_d\json-simple-1.1.1.jar" server.java
-
-
-java -classpath .;"D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar";"D:\royServer2_in_d\json-simple-1.1.1.jar" server
-
-
-
-
-
-
+2. compile the server file using:                                        javac -classpath "D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar";"D:\royServer2_in_d\json-simple-1.1.1.jar" server.java
+3. run the server using:                                                 java -classpath .;"D:\MATLAB\R2018b\extern\engines\java\jar\engine.jar";"D:\royServer2_in_d\json-simple-1.1.1.jar" server
 
 Notes:
 
